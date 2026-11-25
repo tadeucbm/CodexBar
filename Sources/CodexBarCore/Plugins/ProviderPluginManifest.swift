@@ -79,12 +79,12 @@ public enum ProviderPluginPercentPolicy: String, Sendable {
     }
 }
 
-enum ProviderPluginDashboardLink: Sendable {
+enum ProviderPluginDashboardLink: Equatable, Sendable {
     case fixed(String)
     case setting(String)
 }
 
-public struct ProviderPluginManifest: Sendable {
+public struct ProviderPluginManifest: Equatable, Sendable {
     public let id: ProviderInstanceID
     public let name: String
     public let icon: ProviderPluginIcon

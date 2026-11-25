@@ -1,7 +1,7 @@
 import Foundation
 
 /// Bundled authority to echo one URL-matched cookie without exposing its value to JavaScript.
-public struct ProviderPluginCookieHeaderEcho: Sendable {
+public struct ProviderPluginCookieHeaderEcho: Equatable, Sendable {
     let origin: String
     let cookie: String
     let header: String

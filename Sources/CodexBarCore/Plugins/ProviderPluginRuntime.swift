@@ -302,8 +302,10 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
             responseSizeLimit: self.responseSizeLimit,
             enforcesUserResponsePolicy: self.enforcesUserResponsePolicy,
             allowsDynamicID: self.allowsDynamicID)
-        guard worker.manifest.id == self.manifest.id else {
-            throw ProviderPluginError.load("reloaded plugin changed provider id")
+        // Approval and storage are bound to the first manifest, while the engine enforces its own copy.
+        // A script that declares different authority on re-evaluation must never become the active worker.
+        guard worker.manifest == self.manifest else {
+            throw ProviderPluginError.load("reloaded plugin changed its manifest")
         }
         self.worker = worker
         return worker
