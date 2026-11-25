@@ -1,7 +1,7 @@
 import Foundation
 
 /// Bundled-only authority for selecting and retaining a single browser profile.
-public struct ProviderPluginCookiePolicy: Sendable {
+public struct ProviderPluginCookiePolicy: Equatable, Sendable {
     public enum Selection: String, Sendable {
         case requestURL = "request-url"
         case rankedSourceDomains = "ranked-source-domains"
@@ -22,7 +22,7 @@ public struct ProviderPluginCookiePolicy: Sendable {
         case omit
     }
 
-    public struct SessionFile: Sendable {
+    public struct SessionFile: Equatable, Sendable {
         let tokenField: String
         let cookieName: String
     }
